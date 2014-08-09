@@ -4,54 +4,89 @@ from text import Text
 
 class Rope(Text):
 
-    """Rope text data structure."""
+    """A Rope is a recursive text data structure."""
 
-    def __init__(self, string):
-        self.root = RopeNode(None, None, None)
+    def __init__(self, parent, left, right):
+        self.parent = parent
+        self.left = left
+        self.right = right
+        self.lenght = 0 # TODO
 
-    def __getitem__(self, arg):
-        """We don't support the step parameter of a slice object."""
-        if isinstance(arg, int):
-            index = arg
-            length = 1
-        else:
-            if arg.step != None:
-                raise Exception('We don\'t support the step parameter in slice objects.')
-            index = arg.start
-            length = arg.stop - arg.start
+    def get(self, beg, end):
+        """Lookup the text between beg and end."""
+        assert 0 <= beg <= end <= self.weight
 
+        index = beg
+        length = end - beg
+
+        # Lookup all relevant leaves and concatenate the requested part
         strings = []
         while length > 0:
-            string = self.lookup(self.root, index, length)
+            string = get_leaf(self, index, length)
             assert string
 
             consumed_length = len(string)
             length -= consumed_length
             index += consumed_length
             strings.append(string)
-
         return ''.join(strings)
 
-    def lookup(self, node, index, length):
-        """Perform a recursive lookup query."""
-        if isinstance(node, RopeLeaf):
-            return node.string[index:index + length]
+    def set(self, beg, end, string):
+        """Replace the text between beg and end with given string."""
+        assert 0 <= beg <= end <= self.weight
+
+        # Split at beg and end
+        left_rope, rest = split(self, beg)
+        _, right_rope = split(rest, end - beg)
+
+        # Concat left and right part with new string
+        inserted_rope = build_rope(string)
+        new_rope = concat(concat(left_rope, inserted_rope), right_rope)
+
+        # Rebalance the resulting rope
+        new_rope.balance()
+        return new_rope
+
+    def balance(self):
+        """Rebalance the rope structure."""
+        pass
+
+    @property
+    def weight(self):
+        return self.left.length
+
+
+def build_rope(string):
+    """Build a rope for the given string."""
+    return NotImplemented
+
+def get_leaf(node, index, length):
+    """Perform a recursive lookup query."""
+    if isinstance(node, RopeLeaf):
+        return node.string[index:index + length]
+    else:
+        if node.weight < index:
+            return get_leaf(node.right, index - node.weight, length)
         else:
-            if node.weight < index:
-                return self.lookup(node.right, index - node.weight, length)
-            else:
-                return self.lookup(node.left, index, length)
+            return get_leaf(node.left, index, length)
 
 
-class RopeNode:
+def concat(left_rope, right_rope):
+    """Concatenate two ropes."""
+    root = Rope(None, left_rope, right_rope)
+    left_rope.parent = root
+    right_rope.parent = root
+    return root
 
-    """A node in a rope."""
 
-    def __init__(self, parent, left, right):
-        self.parent = parent
-        self.left = left
-        self.right = right
-        self.weight = 0  # TODO
+def split(rope, index):
+    """Split a rope into two ropes at given index."""
+    if isinstance(rope, RopeLeaf):
+        left_string = rope.string[:index]
+        right_string = rope.string[index:]
+        return RopeLeaf(None, left_string), RopeLeaf(None, right_string)
+    else:
+        pass
 
 
 class RopeLeaf:
@@ -61,4 +96,7 @@ class RopeLeaf:
     def __init__(self, parent, string):
         self.parent = parent
         self.string = string
-        self.weight = len(string)
+
+    @property
+    def weight(self):
+        return len(self.string)
